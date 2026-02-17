@@ -45,6 +45,13 @@ studentManagement/
 
 ## Getting Started
 
+### Clone the Project
+
+```bash
+git clone https://github.com/Ajkouva/StudentManagement.git
+cd StudentManagement
+```
+
 ### Prerequisites
 
 - [Node.js](https://nodejs.org/) (v18+)
