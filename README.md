@@ -62,30 +62,45 @@ cd StudentManagement
 Create a PostgreSQL database and run:
 
 ```sql
-CREATE DATABASE studentManagement;
+-- Clean slate first
+DROP TABLE IF EXISTS teacher, student, users CASCADE;
 
 CREATE TABLE users (
     id SERIAL PRIMARY KEY,
-    name VARCHAR(50) NOT NULL,
-    email VARCHAR(100) UNIQUE NOT NULL,
+	name VARCHAR(50) NOT NULL,
+    email VARCHAR(50) NOT NULL UNIQUE,
     password_hash TEXT NOT NULL,
-    role VARCHAR(10) DEFAULT 'TEACHER'
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    role VARCHAR(20) DEFAULT 'TEACHER' NOT NULL
+);
+
+ALTER TABLE users RENAME COLUMN user_role TO role;
+
+CREATE TABLE student (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(50) NOT NULL UNIQUE,
+    email VARCHAR(50) NOT NULL UNIQUE REFERENCES users(email),
+	subject varchar(50),
+	roll_num int,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE teacher (
     id SERIAL PRIMARY KEY,
-    name VARCHAR(50) NOT NULL,
-    email VARCHAR(100) UNIQUE NOT NULL,
-    subject VARCHAR(100) NOT NULL
+    name VARCHAR(100) NOT NULL,
+    email VARCHAR(50) NOT NULL UNIQUE REFERENCES users(email),
+    subject VARCHAR(50),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE student (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(50) NOT NULL,
-    email VARCHAR(100) UNIQUE NOT NULL,
-    subject VARCHAR(100) NOT NULL,
-    roll_num VARCHAR(20) NOT NULL
-);
+-- View empty tables
+SELECT * FROM users;
+SELECT * FROM student;
+SELECT * FROM teacher;
+
+-- Delete ALL data (better than simple DELETE for your use case)
+TRUNCATE TABLE student, users, teacher RESTART IDENTITY CASCADE;
+
 ```
 
 ### 2. Configure Environment
