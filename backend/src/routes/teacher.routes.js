@@ -5,6 +5,6 @@ const protect = require('../middleware/auth.protect');
 
 router.get('/teacherDetails',protect, teacherController.teacherDetails);
 router.post('/addStudent',protect, teacherController.addStudent);
-// router.get('/attendence', studentController.attendence);
+router.get('/stats',protect, teacherController.stats);
 
 module.exports = router;

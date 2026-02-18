@@ -2,19 +2,18 @@ const pool = require("../db/db");
 // require('dotenv').config();
 
 async function studentDetails(req, res) {
-    if (req.user.role !== "STUDENT") {
-        return res.status(403).json({ message: "Access denied" });
-    }
-    const email = req.user.email;
-
-    if (!email) {
-        return res.status(400).json({ error: "User email required" });
-    }
-
     try {
+        if (!req.user) {
+            return res.status(400).json({ error: "User email required" });
+        }
+        if (req.user.role !== "STUDENT") {
+            return res.status(403).json({ message: "Access denied" });
+        }
+        const email = req.user.email;
+
         const result = await pool.query('select id, name, email, subject, roll_num from student where email = $1', [email]);
 
-        if ((result).rows.length === 0) {
+        if (result.rows.length === 0) {
             return res.status(404).json({ error: "Student profile not found" });
         }
 

@@ -4,17 +4,18 @@ const bcrypt = require('bcryptjs');
 
 
 async function teacherDetails(req, res) {
-    if (req.user.role !== "TEACHER") {
-        return res.status(403).json({ message: "Access denied" });
-    }
-    const email = req.user.email;
-    if (!email) {
-        return res.status(400).json({ error: "User email required" });
-    }
     try {
+        if (!req.user) {
+            return res.status(400).json({ error: 'user not found' });
+        }
+        if (req.user.role !== "TEACHER") {
+            return res.status(403).json({ message: "Access denied" });
+        }
+
+        const email = req.user.email;
         const result = await pool.query('select id, name, email, subject  from teacher where email = $1', [email]);
 
-        if ((result).rows.length === 0) {
+        if (result.rows.length === 0) {
             return res.status(404).json({ error: "Teacher profile not found" });
         }
 
@@ -38,7 +39,9 @@ async function teacherDetails(req, res) {
 
 async function addStudent(req, res) {
     try {
-
+        if (!req.user) {
+            return res.status(400).json({ error: 'user not found' });
+        }
         if (req.user.role !== "TEACHER") {
             return res.status(403).json({ message: "Access denied" });
         }
@@ -55,6 +58,13 @@ async function addStudent(req, res) {
         if (isuserExist.rows.length > 0) {
             return res.status(400).json({
                 message: "user already exists"
+            });
+        }
+
+        const isstudentExist = await pool.query('select 1 from student where roll_num = $1', [roll_num]);
+        if (isstudentExist.rows.length > 0) {
+            return res.status(400).json({
+                message: "student already exists with this roll number"
             });
         }
 
@@ -88,5 +98,43 @@ async function addStudent(req, res) {
     }
 }
 
+async function stats(req, res) {
+    try {
+        if (!req.user) {
+            return res.status(400).json({ error: 'user not found' });
+        }
+        if (req.user.role !== "TEACHER") {
+            return res.status(403).json({ message: "Access denied" });
+        }
+        let total_student = 0;
+        const result = await pool.query('select count(*) as count from student ');
+        total_student = parseInt(result.rows[0].count);
+        const today = new Date().toISOString().split('T')[0];
 
-module.exports = { teacherDetails, addStudent };
+        let present = 0;
+        let absent = 0;
+
+        const presentResult = await pool.query('select count(*) as count from attendance where date= $1 and status = $2', [today, 'PRESENT']);
+
+        present = parseInt(presentResult.rows[0].count);
+
+        absent = total_student - present;
+
+        res.status(200).json({
+            total_student,
+            present,
+            absent,
+
+        });
+
+
+    } catch (err) {
+        console.error('Dashboard stats error:', err)
+        res.status(500).json({ error: 'Server error' })
+
+    };
+
+}
+
+
+module.exports = { teacherDetails, addStudent, stats };

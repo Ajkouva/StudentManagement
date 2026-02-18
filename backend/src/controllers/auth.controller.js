@@ -6,8 +6,8 @@ const pool = require("../db/db");
 const cookie = {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    maxAge: 30 * 24 * 60 * 60 * 1000,
+    sameSite: "strict",
+    maxAge: 24 * 60 * 60 * 1000,
 }
 
 //register user
@@ -97,7 +97,7 @@ async function login(req, res) {
         res.cookie("token", token, cookie);
 
         res.status(200).json({
-            message: "login sucessfully",
+            message: "login successfully",
             user: {
                 "id": user.id,
                 "name": user.name,
@@ -119,8 +119,8 @@ async function me(req, res) {
         user = user.rows[0]
         if (!user) return res.status(404).json({ message: "User not found" });
         res.json({
-            message: "details fetched sucessfully",
-            user: {
+            message: "details fetched successfully",
+            user: {                   
                 "id": user.id,
                 "name": user.name,
                 "email": user.email,

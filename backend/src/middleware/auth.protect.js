@@ -13,7 +13,7 @@ const auth = async (req, res, next) => {
         req.user = decoded;
         next();
     } catch (e) {
-        return res.status(401).json({ message: "invaild token " });
+        return res.status(401).json({ message: "invalid token " });
     }
 }
 
