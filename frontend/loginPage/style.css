@@ -32,8 +32,9 @@ body {
     border-top-left-radius: 20px;
     border-bottom-left-radius: 20px;
 }
-#stduent_content{
-    padding-top:20px;
+
+#stduent_content {
+    padding-top: 20px;
 }
 
 .Box2 {
@@ -59,7 +60,7 @@ body {
     width: 100%;
     height: 100%;
     background-image: url("assets/image.png");
-    background-size:cover;
+    background-size: cover;
     background-repeat: no-repeat;
     background-position: center;
     border-radius: 10px;
@@ -150,10 +151,12 @@ body {
     transition: background-color 0.3s;
     animation: colorchange 1s infinite alternate;
 }
-#login-btn a{
+
+#login-btn a {
     text-decoration: none;
     color: #171717;
 }
+
 /* @keyframes colorchange{
    25%{
     box-shadow: 3px 5px 10px #e5c355  ;
@@ -173,7 +176,7 @@ body {
    } */
 
 
-   
+
 
 
 #login-btn:hover {
@@ -201,7 +204,7 @@ body {
 
 .illustration-container {
     margin-top: 20px;
-    
+
 }
 
 #welcome-image {
@@ -209,22 +212,25 @@ body {
     height: auto;
     margin: 0 auto;
 }
-.llustration-container img{
-    object-fit:cover;
+
+.llustration-container img {
+    object-fit: cover;
     width: 100%;
     height: 100%;
 }
-.sign-up{
+
+.sign-up {
     text-align: center;
-     margin-top:20px;
-    padding:5px;
+    margin-top: 20px;
+    padding: 5px;
 }
-.sign-up a{
+
+.sign-up a {
     text-decoration: none;
-    
+
 }
-.sign-up a:hover{
+
+.sign-up a:hover {
     color: white;
-   transition: white 0.3s;
+    transition: white 0.3s;
 }
-    
