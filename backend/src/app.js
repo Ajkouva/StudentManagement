@@ -6,6 +6,7 @@ const studentRoutes = require('./routes/student.routes');
 const teacherRoutes = require('./routes/teacher.routes');
 const limiter = require('./middleware/auth.limiter');
 const teacherLimiter = require('./middleware/teacher.limiter');
+const studentLimiter = require('./middleware/student.limiter');
 
 const app = express();
 app.use(cors({
@@ -23,8 +24,8 @@ app.get("/", (req, res) => {
 
 
 app.use('/api/auth', limiter, authRoutes);
-// Apply limiter to student routes as well
-app.use('/api/student', limiter, studentRoutes);
+// Bug fix: student routes need a higher rate limit than the auth limiter (10/15min was too low)
+app.use('/api/student', studentLimiter, studentRoutes);
 app.use('/api/teacher', teacherLimiter, teacherRoutes);
 
 app.use((err, req, res, next) => {

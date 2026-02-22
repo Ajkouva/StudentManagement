@@ -6,7 +6,7 @@ const bcrypt = require('bcryptjs');
 async function teacherDetails(req, res) {
     try {
         if (!req.user) {
-            return res.status(400).json({ error: 'user not found' });
+            return res.status(401).json({ error: 'Unauthorized' });
         }
         if (req.user.role !== "TEACHER") {
             return res.status(403).json({ message: "Access denied" });
@@ -40,7 +40,7 @@ async function teacherDetails(req, res) {
 async function addStudent(req, res) {
     try {
         if (!req.user) {
-            return res.status(400).json({ error: 'user not found' });
+            return res.status(401).json({ error: 'Unauthorized' });
         }
         if (req.user.role !== "TEACHER") {
             return res.status(403).json({ message: "Access denied" });
@@ -68,7 +68,9 @@ async function addStudent(req, res) {
         if (password.length < 8) {
             return res.status(400).json({ message: "Password must be at least 8 characters long" });
         }
-        if (!Number.isInteger(roll_num) || roll_num <= 0) {
+        // Bug fix: coerce to int first so both "5" (string) and 5 (number) are accepted
+        const parsedRollNum = parseInt(roll_num, 10);
+        if (isNaN(parsedRollNum) || parsedRollNum <= 0) {
             return res.status(400).json({ message: "Roll number must be a positive integer" });
         }
 
@@ -80,7 +82,7 @@ async function addStudent(req, res) {
             await client.query('BEGIN');
             // Removed manual check to avoid race condition constraint
             await client.query('insert into users(name,email, password_hash, role) values($1, $2, $3, $4)', [cleanName, cleanEmail, password_hash, role]);
-            await client.query("insert into student (name, email, subject, roll_num) values($1,$2, $3, $4)", [cleanName, cleanEmail, cleanSubject, roll_num]);
+            await client.query("insert into student (name, email, subject, roll_num) values($1,$2, $3, $4)", [cleanName, cleanEmail, cleanSubject, parsedRollNum]);
             await client.query('COMMIT');
         } catch (e) {
             await client.query('ROLLBACK');
@@ -123,58 +125,37 @@ async function stats(req, res) {
         }
         const teacherSubject = teacherRes.rows[0].subject;
 
-        const client = await pool.connect();
-        try {
-            // Use transaction for consistency
-            await client.query('BEGIN');
+        // Bug fix: removed unnecessary BEGIN/COMMIT transaction — these are read-only SELECTs
+        const totalRes = await pool.query(
+            'SELECT COUNT(*) as count FROM student WHERE LOWER(subject) = LOWER($1)',
+            [teacherSubject]
+        );
+        const total_student = parseInt(totalRes.rows[0].count, 10);
 
-            /* 
-               Only count students that belong to this teacher's subject.
-               Using LOWER() for case-insensitive matching.
-            */
-            const totalRes = await client.query('SELECT COUNT(*) as count FROM student WHERE LOWER(subject) = LOWER($1)', [teacherSubject]);
-            const total_student = parseInt(totalRes.rows[0].count, 10);
+        const today = new Date().toISOString().split('T')[0];
 
-            const today = new Date().toISOString().split('T')[0];
+        const presentRes = await pool.query(`
+            SELECT COUNT(*) as count 
+            FROM attendance a
+            JOIN student s ON a.student_id = s.id
+            WHERE a.date = $1 AND a.status = $2 AND LOWER(s.subject) = LOWER($3)
+        `, [today, 'PRESENT', teacherSubject]);
 
-            /*
-               Count 'Present' students for today, joined with student table 
-               to ensure we only count THIS teacher's students.
-               Using LOWER() for case-insensitive matching.
-            */
-            const presentRes = await client.query(`
-                SELECT COUNT(*) as count 
-                FROM attendance a
-                JOIN student s ON a.student_id = s.id
-                WHERE a.date = $1 AND a.status = $2 AND LOWER(s.subject) = LOWER($3)
-            `, [today, 'PRESENT', teacherSubject]);
+        const present = parseInt(presentRes.rows[0].count, 10);
 
-            const present = parseInt(presentRes.rows[0].count, 10);
+        let absent = total_student - present;
+        if (absent < 0) absent = 0;
 
-            // Absent = Total (in subject) - Present (in subject)
-            // Ensure non-negative result (though technically shouldn't happen if logic works)
-            let absent = total_student - present;
-            if (absent < 0) absent = 0;
-
-            await client.query('COMMIT');
-
-            res.status(200).json({
-                subject: teacherSubject,
-                total_student,
-                present,
-                absent,
-            });
-
-        } catch (dbErr) {
-            await client.query('ROLLBACK');
-            throw dbErr;
-        } finally {
-            client.release();
-        }
+        res.status(200).json({
+            subject: teacherSubject,
+            total_student,
+            present,
+            absent,
+        });
 
     } catch (err) {
-        console.error('Dashboard stats error:', err)
-        res.status(500).json({ error: 'Server error' })
+        console.error('Dashboard stats error:', err);
+        res.status(500).json({ error: 'Server error' });
     };
 }
 
@@ -221,7 +202,8 @@ async function markAttendance(req, res) {
         let skippedCount = 0;
         const skippedDetails = [];
 
-        for (const record of records) {
+        // Bug fix: use entries() to track index in O(1) instead of indexOf() which is O(n²)
+        for (const [recordIndex, record] of records.entries()) {
             // Handle both id and student_id
             const studentId = record.student_id || record.id;
             // Normalize status to uppercase to handle 'present', 'Present', etc.
@@ -241,7 +223,7 @@ async function markAttendance(req, res) {
             if (studentCheck.rows.length === 0) {
                 skippedCount++;
                 // Security: Don't echo back the exact ID if not found, just generic reason
-                skippedDetails.push({ recordIndex: records.indexOf(record), reason: "Student ID not found or not in your subject" });
+                skippedDetails.push({ recordIndex, reason: "Student ID not found or not in your subject" });
                 console.warn(`Skipping (student not found/wrong subject): ${studentId}`);
                 continue;
             }

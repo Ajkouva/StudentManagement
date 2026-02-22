@@ -19,6 +19,16 @@ async function studentDetails(req, res) {
 
         const student = result.rows[0];
 
+        const attendance = await pool.query('SELECT status FROM attendance WHERE student_id = $1', [student.id]);
+        let totalAttendance = attendance.rows.length;
+        let presentAttendance = attendance.rows.filter(row => row.status === 'PRESENT').length;
+        let absentAttendance = attendance.rows.filter(row => row.status === 'ABSENT').length;
+
+        // Bug fix: guard against division by zero when student has no attendance records
+        let presentPercentage = totalAttendance > 0 ? (presentAttendance / totalAttendance) * 100 : 0;
+        let absentPercentage = totalAttendance > 0 ? (absentAttendance / totalAttendance) * 100 : 0;
+
+
         res.json({
             profile: {
                 name: student.name,
@@ -26,7 +36,15 @@ async function studentDetails(req, res) {
                 subject: student.subject,
                 roll_no: student.roll_num,
                 email: student.email
+
             },
+            attendance: {
+                totalAttendance: totalAttendance,
+                presentAttendance: presentAttendance,
+                absentAttendance: absentAttendance,
+                presentPercentage: presentPercentage,
+                absentPercentage: absentPercentage
+            }
         })
 
     } catch (e) {
@@ -57,8 +75,18 @@ async function attendanceCalendar(req, res) {
         `;
         const attendanceResult = await pool.query(attendanceQuery, [userEmail]);
 
+
+        // Map status to color for frontend calendar display
+        const coloredRows = attendanceResult.rows.map(row => ({
+            date: row.date,  // PostgreSQL returns lowercase column names
+            status: row.status,
+            color: row.status === 'PRESENT' ? 'green' :
+                (row.status === 'ABSENT' ? 'red' : 'grey')
+        }));
+
+
         res.json({
-            attendance: attendanceResult.rows
+            coloredRows
         });
 
     } catch (e) {

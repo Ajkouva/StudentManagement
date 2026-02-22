@@ -29,7 +29,9 @@ CREATE TABLE teacher (
     id SERIAL PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     email VARCHAR(50) NOT NULL UNIQUE REFERENCES users(email) ON DELETE CASCADE,
-    subject VARCHAR(50),
+    -- Bug fix: subject must be NOT NULL; stats and markAttendance use it for filtering
+    -- and would silently return 0 results if a teacher has no subject.
+    subject VARCHAR(50) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -47,6 +49,9 @@ CREATE TABLE attendance (
 
 -- 1. Users
 INSERT INTO users (name, email, password_hash, role) VALUES
+-- ⚠️  BUG: password_hash values below are plain text, NOT real bcrypt hashes.
+-- These users CANNOT log in via the API (bcrypt.compare will always return false).
+-- For functional login testing, replace these with actual bcrypt hashes or run a separate seed script.
 ('Aman Verma', 'aman@gmail.com', 'hashed_pass_1', 'STUDENT'),
 ('Riya Sharma', 'riya@gmail.com', 'hashed_pass_2', 'STUDENT'),
 ('Karan Singh', 'karan@gmail.com', 'hashed_pass_3', 'STUDENT'),
