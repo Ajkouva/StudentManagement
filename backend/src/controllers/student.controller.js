@@ -19,16 +19,6 @@ async function studentDetails(req, res) {
 
         const student = result.rows[0];
 
-        const attendance = await pool.query('SELECT status FROM attendance WHERE student_id = $1', [student.id]);
-        let totalAttendance = attendance.rows.length;
-        let presentAttendance = attendance.rows.filter(row => row.status === 'PRESENT').length;
-        let absentAttendance = attendance.rows.filter(row => row.status === 'ABSENT').length;
-
-        // Bug fix: guard against division by zero when student has no attendance records
-        let presentPercentage = totalAttendance > 0 ? (presentAttendance / totalAttendance) * 100 : 0;
-        let absentPercentage = totalAttendance > 0 ? (absentAttendance / totalAttendance) * 100 : 0;
-
-
         res.json({
             profile: {
                 name: student.name,
@@ -37,21 +27,14 @@ async function studentDetails(req, res) {
                 roll_no: student.roll_num,
                 email: student.email
 
-            },
-            attendance: {
-                totalAttendance: totalAttendance,
-                presentAttendance: presentAttendance,
-                absentAttendance: absentAttendance,
-                presentPercentage: presentPercentage,
-                absentPercentage: absentPercentage
             }
         })
-
     } catch (e) {
         console.error('Dashboard error:', e);
         res.status(500).json({ error: 'Server error' });
     }
 }
+
 
 async function attendanceCalendar(req, res) {
     if (!req.user) {
@@ -87,15 +70,29 @@ async function attendanceCalendar(req, res) {
 
         // Map status to color for frontend calendar display
         const coloredRows = attendanceResult.rows.map(row => ({
-            date: row.date,  // PostgreSQL returns lowercase column names
+            date: row.date,
             status: row.status,
             color: row.status === 'PRESENT' ? 'green' :
                 (row.status === 'ABSENT' ? 'red' : 'grey')
         }));
 
+        const totalAttendance = attendanceResult.rows.length;
+        const presentAttendance = attendanceResult.rows.filter(row => row.status === 'PRESENT').length;
+        const absentAttendance = attendanceResult.rows.filter(row => row.status === 'ABSENT').length;
+
+        // Guard against division by zero when student has no attendance records
+        const presentPercentage = totalAttendance > 0 ? (presentAttendance / totalAttendance) * 100 : 0;
+        const absentPercentage = totalAttendance > 0 ? (absentAttendance / totalAttendance) * 100 : 0;
 
         res.json({
-            coloredRows
+            coloredRows,
+            attendance: {
+                totalAttendance,
+                presentAttendance,
+                absentAttendance,
+                presentPercentage,
+                absentPercentage
+            }
         });
 
     } catch (e) {
