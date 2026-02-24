@@ -200,7 +200,8 @@ async function markAttendance(req, res) {
         // Fetch teacher's subject to scope the attendance (Moved inside try/catch for safety)
         const teacherRes = await client.query('SELECT subject FROM teacher WHERE email = $1', [req.user.email]);
         if (teacherRes.rows.length === 0) {
-            await client.query('ROLLBACK');
+            // Improvement #19: no writes have happened yet so ROLLBACK is a no-op.
+            // client.release() in finally will auto-rollback the open transaction.
             return res.status(404).json({ error: "Teacher profile not found" });
         }
         const teacherSubject = teacherRes.rows[0].subject;
@@ -208,40 +209,51 @@ async function markAttendance(req, res) {
         let markedCount = 0;
         let skippedCount = 0;
         const skippedDetails = [];
+        const validStatuses = ['PRESENT', 'ABSENT', 'LATE', 'LEAVE'];
 
-        // Bug fix: use entries() to track index in O(1) instead of indexOf() which is O(n²)
+        // Improvement #18: first-pass — parse all records and filter invalid ones up front
+        // so we can batch-validate the remainder with ONE query instead of N queries in the loop
+        const pendingRecords = [];
         for (const [recordIndex, record] of records.entries()) {
-            // Handle both id and student_id
             const studentId = record.student_id || record.id;
-            // Normalize status to uppercase to handle 'present', 'Present', etc.
             const status = record.status ? record.status.toUpperCase() : null;
 
-            const validStatuses = ['PRESENT', 'ABSENT', 'LATE', 'LEAVE'];
             if (!studentId || !status || !validStatuses.includes(status)) {
                 skippedCount++;
                 skippedDetails.push({ record, reason: "Missing ID or invalid status" });
                 console.warn(`Skipping invalid record: ${JSON.stringify(record)}`);
-                continue;
+            } else {
+                pendingRecords.push({ recordIndex, studentId: parseInt(studentId, 10), status });
             }
+        }
 
-            // Check if student exists AND belongs to teacher's subject (Case Insensitive)
-            // This prevents teachers from marking attendance for students they don't teach
-            const studentCheck = await client.query('SELECT 1 FROM student WHERE id = $1 AND LOWER(subject) = LOWER($2)', [studentId, teacherSubject]);
-            if (studentCheck.rows.length === 0) {
+        // Batch-validate all candidate student IDs in ONE query (was N queries inside the loop)
+        const candidateIds = pendingRecords.map(r => r.studentId);
+        let validStudentIds = new Set();
+        if (candidateIds.length > 0) {
+            const validationRes = await client.query(
+                'SELECT id FROM student WHERE id = ANY($1) AND LOWER(subject) = LOWER($2)',
+                [candidateIds, teacherSubject]
+            );
+            validStudentIds = new Set(validationRes.rows.map(r => r.id));
+        }
+
+        // Process — no DB query inside the loop now
+        for (const { recordIndex, studentId, status } of pendingRecords) {
+            if (!validStudentIds.has(studentId)) {
                 skippedCount++;
-                // Security: Don't echo back the exact ID if not found, just generic reason
+                // Security: don't echo back the exact ID if not found
                 skippedDetails.push({ recordIndex, reason: "Student ID not found or not in your subject" });
                 console.warn(`Skipping (student not found/wrong subject): ${studentId}`);
                 continue;
             }
 
-            const query = `
-            insert into attendance(student_id,date,status)
-            values($1,$2,$3)
-            on conflict (student_id,date) do update
-            set status = excluded.status`;
-
-            await client.query(query, [studentId, date, status]);
+            await client.query(`
+                INSERT INTO attendance(student_id, date, status)
+                VALUES ($1, $2, $3)
+                ON CONFLICT (student_id, date) DO UPDATE
+                SET status = excluded.status
+            `, [studentId, date, status]);
             markedCount++;
         }
 
