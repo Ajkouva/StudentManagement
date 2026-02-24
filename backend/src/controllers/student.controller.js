@@ -64,16 +64,25 @@ async function attendanceCalendar(req, res) {
     if (!userEmail) {
         return res.status(400).json({ error: "User email required" });
     }
+
+    const { month, year } = req.body;
+    if (!month || !year) {
+        return res.status(400).json({ error: "Month and year required" });
+    }
     try {
+        const firstDayOfMonth = new Date(year, month - 1, 1);
+        const lastDayOfMonth = new Date(year, month, 0);
         // Query attendance by joining with student table since attendance uses student_id
         const attendanceQuery = `
             SELECT TO_CHAR(a.date, 'YYYY-MM-DD') as date, a.status 
             FROM attendance a
             JOIN student s ON a.student_id = s.id
             WHERE s.email = $1 
+            AND a.date >= $2
+            AND a.date <= $3
             ORDER BY a.date DESC
         `;
-        const attendanceResult = await pool.query(attendanceQuery, [userEmail]);
+        const attendanceResult = await pool.query(attendanceQuery, [userEmail, firstDayOfMonth, lastDayOfMonth]);
 
 
         // Map status to color for frontend calendar display
