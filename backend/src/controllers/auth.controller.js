@@ -24,6 +24,11 @@ async function register(req, res) {
         const cleanEmail = email.trim().toLowerCase();
         const cleanSubject = subject.trim();
 
+        // Bug #3 fix: whitespace-only strings pass the !field check but trim to ""
+        if (!cleanName || !cleanEmail || !cleanSubject) {
+            return res.status(400).json({ message: "Fields cannot be blank or whitespace only" });
+        }
+
         // Robust Email Regex explanation: ^[^\s@]+@[^\s@]+\.[^\s@]+$ matches generic email format
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!emailRegex.test(cleanEmail)) {
@@ -39,9 +44,7 @@ async function register(req, res) {
 
         const isuserExist = await pool.query('select 1 from users where email = $1', [cleanEmail]);
         if (isuserExist.rows.length > 0) {
-            return res.status(400).json({
-                message: "user already exists"
-            });
+            return res.status(400).json({ message: "User with this email already exists" });
         }
 
         const password_hash = await bcrypt.hash(password, 10);
@@ -161,7 +164,7 @@ async function me(req, res) {
 async function logout(req, res) {
     try {
         res.cookie("token", "", { ...cookie, maxAge: 1 });
-        res.json({ message: "Logged out successfully " })
+        res.json({ message: "Logged out successfully" })
     } catch (err) {
         console.error(err);
         res.status(500).json({ message: "Internal server error" });

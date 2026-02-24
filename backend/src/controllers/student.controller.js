@@ -38,7 +38,7 @@ async function studentDetails(req, res) {
 
 async function attendanceCalendar(req, res) {
     if (!req.user) {
-        return res.status(401).json({ message: "Unauthorized" });
+        return res.status(401).json({ error: 'Unauthorized' });
     }
     if (req.user.role !== "STUDENT") {
         return res.status(403).json({ message: "Access denied" });
@@ -52,20 +52,26 @@ async function attendanceCalendar(req, res) {
     if (!month || !year) {
         return res.status(400).json({ error: "Month and year required" });
     }
+
+    // Bug #1 fix: parse to integers and validate before passing to DB
+    const parsedMonth = parseInt(month, 10);
+    const parsedYear = parseInt(year, 10);
+    if (isNaN(parsedMonth) || parsedMonth < 1 || parsedMonth > 12 ||
+        isNaN(parsedYear) || parsedYear < 2000 || parsedYear > 2100) {
+        return res.status(400).json({ error: "Invalid month or year value" });
+    }
+
     try {
-        const firstDayOfMonth = new Date(year, month - 1, 1);
-        const lastDayOfMonth = new Date(year, month, 0);
-        // Query attendance by joining with student table since attendance uses student_id
+        // Bug #1 fix: use DB-side MAKE_DATE so no JS timezone drift
         const attendanceQuery = `
-            SELECT TO_CHAR(a.date, 'YYYY-MM-DD') as date, a.status 
+            SELECT TO_CHAR(a.date, 'YYYY-MM-DD') as date, a.status
             FROM attendance a
             JOIN student s ON a.student_id = s.id
-            WHERE s.email = $1 
-            AND a.date >= $2
-            AND a.date <= $3
+            WHERE s.email = $1
+              AND DATE_TRUNC('month', a.date) = MAKE_DATE($2, $3, 1)
             ORDER BY a.date DESC
         `;
-        const attendanceResult = await pool.query(attendanceQuery, [userEmail, firstDayOfMonth, lastDayOfMonth]);
+        const attendanceResult = await pool.query(attendanceQuery, [userEmail, parsedYear, parsedMonth]);
 
 
         // Map status to color for frontend calendar display
@@ -81,8 +87,9 @@ async function attendanceCalendar(req, res) {
         const absentAttendance = attendanceResult.rows.filter(row => row.status === 'ABSENT').length;
 
         // Guard against division by zero when student has no attendance records
-        const presentPercentage = totalAttendance > 0 ? (presentAttendance / totalAttendance) * 100 : 0;
-        const absentPercentage = totalAttendance > 0 ? (absentAttendance / totalAttendance) * 100 : 0;
+        // Bug #5 fix: round to avoid raw floats like 33.3333...
+        const presentPercentage = totalAttendance > 0 ? Math.round((presentAttendance / totalAttendance) * 100) : 0;
+        const absentPercentage = totalAttendance > 0 ? Math.round((absentAttendance / totalAttendance) * 100) : 0;
 
         res.json({
             coloredRows,

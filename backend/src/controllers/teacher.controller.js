@@ -56,6 +56,11 @@ async function addStudent(req, res) {
         const cleanEmail = email.trim().toLowerCase();
         const cleanSubject = subject.trim();
 
+        // Bug #2 fix: whitespace-only strings pass the !field check but trim to ""
+        if (!cleanName || !cleanEmail || !cleanSubject) {
+            return res.status(400).json({ message: "Fields cannot be blank or whitespace only" });
+        }
+
         // Robust Email Regex
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!emailRegex.test(cleanEmail)) {
@@ -158,14 +163,14 @@ async function stats(req, res) {
     } catch (err) {
         console.error('Dashboard stats error:', err);
         res.status(500).json({ error: 'Server error' });
-    };
+    }
 }
 
 
 async function markAttendance(req, res) {
     // 1. Crash Prevention: Check req.user exists
     if (!req.user) {
-        return res.status(401).json({ message: "Unauthorized" });
+        return res.status(401).json({ error: 'Unauthorized' });
     }
     // 2. Role Check
     if (req.user.role !== "TEACHER") {
@@ -464,10 +469,13 @@ async function attendanceDetails(req, res) {
             ORDER BY s.roll_num ASC
         `, [teacherSubject, monthStart]);
 
-        // Derive the label for which month is being returned
-        const monthLabel = monthStart
-            ? req.query.month
-            : new Date().toISOString().slice(0, 7); // YYYY-MM
+        // Bug #6 fix: new Date().toISOString() is UTC — wrong month for IST users at end-of-month.
+        // Use DB-side CURRENT_DATE which matches all other queries in this codebase.
+        const labelRes = await pool.query(
+            `SELECT TO_CHAR(COALESCE($1::date, CURRENT_DATE), 'YYYY-MM') AS label`,
+            [monthStart]
+        );
+        const monthLabel = labelRes.rows[0].label;
 
         return res.status(200).json({
             subject: teacherSubject,

@@ -21,7 +21,7 @@ CREATE TABLE student (
     name VARCHAR(50) NOT NULL,
     email VARCHAR(50) NOT NULL UNIQUE REFERENCES users(email) ON DELETE CASCADE,
 	subject varchar(50) NOT NULL,
-	roll_num int UNIQUE,
+	roll_num INT NOT NULL UNIQUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

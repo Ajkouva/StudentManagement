@@ -8,6 +8,7 @@ node_modules
 backend/check_db.js
 backend/debug_attendance.js
 backend/list_students.js
+backend/hashes.txt
 
 # Logs
 *.log
